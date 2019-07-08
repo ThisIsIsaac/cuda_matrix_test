@@ -1,2 +1,5 @@
 # User-specific files
 .vscode/
+
+# Generated binary files
+test

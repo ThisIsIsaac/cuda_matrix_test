@@ -31,15 +31,15 @@ class Matrix {
     bool m_isTransposed;
     int m_num_batch;
     int m_num_channel;
-    int m_rows;
-    int m_cols;
+    int m_num_row;
+    int m_num_col;
 
    public:
     Matrix(Layout layout, int num_batch, int num_channel, int rows, int cols, bool isTransposed = false);
 
     ~Matrix();
 
-    void randomize(T mean, T scale, int sparsity = 0);
+    void randomize(double mean, double scale, int sparsity = 0);
 
     void randomize(int max_value);
 
@@ -53,9 +53,9 @@ class Matrix {
 
     T get(int batch, int channel, int row, int col);
 
-    int rows();
+    int num_row();
 
-    int cols();
+    int num_col();
 
     int num_batch();
 
@@ -63,7 +63,7 @@ class Matrix {
 
     void print(const char *name);
 
-    bool matrix_compare(const char *name, Matrix<T> &ref_matirx, float max_error = 1.e-4);
+    bool matrix_compare(const char *name, Matrix<T> &ref_matrix, float max_error = 1.e-4);
 
     void d_cudaMemcpy();
 };
@@ -75,8 +75,8 @@ Matrix<T>::Matrix(Layout layout, int num_batch, int num_channel, int rows, int c
     : m_layout(layout),
       m_num_batch(num_batch),
       m_num_channel(num_channel),
-      m_rows(rows),
-      m_cols(cols),
+      m_num_row(rows),
+      m_num_col(cols),
       m_isTransposed(isTransposed) {
     m_data = (T *)malloc(num_batch * num_channel * rows * cols * sizeof(T));
     CHECK(cudaMalloc((int **)&m_d_data, num_batch * num_channel * rows * cols * sizeof(T)));
@@ -90,24 +90,23 @@ Matrix<T>::~Matrix() {
 
 template <typename T>
 void Matrix<T>::d_cudaMemcpy() {
-    size_t nBytes = num_batch() * num_channel() * rows() * cols() * sizeof(T);
+    size_t nBytes = num_batch() * num_channel() * num_row() * num_col() * sizeof(T);
     CHECK(cudaMemset(m_d_data, 0, nBytes));
     CHECK(cudaMemcpy(m_data, m_d_data, nBytes, cudaMemcpyHostToDevice));
 }
 
 template <typename T>
-void Matrix<T>::randomize(T mean, T scale, int sparsity) {
-    for (int batch = 0; batch < num_batch(); batch++) {
-        for (int channel = 0; channel < num_channel(); channel++) {
-            for (int row = 0; row < rows(); row++) {
-                for (int col = 0; col < cols(); col++) {
-                    T r;
-                    // Generate a random number from 0 to 1.0
-                    if (std::is_same<T, float>::value || std::is_same<T, double>::value) {
+void Matrix<T>::randomize(double mean, double scale, int sparsity) {
+    if (std::is_same<T, float>::value || std::is_same<T, double>::value) {
+        for (int batch = 0; batch < num_batch(); batch++) {
+            for (int channel = 0; channel < num_channel(); channel++) {
+                for (int row = 0; row < num_row(); row++) {
+                    for (int col = 0; col < num_col(); col++) {
+                        T r;
                         if ((rand() % 100) < sparsity) {
-                            // printf("this is %f\n", 0.f);
                             set(batch, channel, row, col, 0.f);
                         } else {
+                            // Generate a random number from 0 to 1.0
                             r = static_cast<T>(rand()) / static_cast<T>(RAND_MAX);
 
                             // Convert to -.5 to .5
@@ -115,35 +114,51 @@ void Matrix<T>::randomize(T mean, T scale, int sparsity) {
 
                             // Scale and shift
                             r = r * scale + mean;
+
+                            set(batch, channel, row, col, r);
                         }
-                    } else if (std::is_same<T, half>::value) {
-                        if ((rand() % 100) < sparsity) {
-                            // printf("this is %f\n", 0.f);
-                            half a(0.0);
-                            set(batch, channel, row, col, a);
-                        } else {
-                            float f = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-                            f -= 0.5;
-                            f = f * scale + mean;
-                            r = f;
-                        }
-                    } else {
-                        assert("Type error: randomize() only supports floating-point types");
                     }
-                    set(batch, channel, row, col, r);
+                }
+            }
+        }
+    } else {
+        printf("Type error: randomize() only supports floating-point types\n");
+    }
+}
+
+template <>
+void Matrix<half>::randomize(double mean, double scale, int sparsity) {
+    for (int batch = 0; batch < num_batch(); batch++) {
+        for (int channel = 0; channel < num_channel(); channel++) {
+            for (int row = 0; row < num_row(); row++) {
+                for (int col = 0; col < num_col(); col++) {
+                    // Generate a random number from 0 to 1.0
+                    if ((rand() % 100) < sparsity) {
+                        half a(0.0);
+                        set(batch, channel, row, col, a);
+                    } else {
+                        float f = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+                        f -= 0.5;
+                        f = f * scale + mean;
+                        set(batch, channel, row, col, half(f));
+                    }
                 }
             }
         }
     }
 }
 
+template <typename T>
+void Matrix<T>::randomize(int max_value) {
+    printf("Type error: randomize(int max_value) only supports integer type\n");
+}
+
 template <>
 void Matrix<int>::randomize(int max_value) {
-    // ONLY supports integer type
     for (int batch = 0; batch < num_batch(); batch++) {
         for (int channel = 0; channel < num_channel(); channel++) {
-            for (int row = 0; row < rows(); row++) {
-                for (int col = 0; col < cols(); col++) {
+            for (int row = 0; row < num_row(); row++) {
+                for (int col = 0; col < num_col(); col++) {
                     set(batch, channel, row, col, rand() % max_value);
                 }
             }
@@ -155,12 +170,14 @@ template <typename T>
 int Matrix<T>::index(int batch, int channel, int row, int col) {
     if (m_layout == NCHW) {
         if (m_isTransposed) {
-            return col + row * m_cols;
+            return col + row * m_num_col;
         } else {
-            return batch * m_num_channel * m_rows * m_cols + channel * m_rows * m_cols + col * m_rows + row;
+            return batch * m_num_channel * m_num_row * m_num_col + channel * m_num_row * m_num_col + col * m_num_row +
+                   row;
         }
     } else {
-        return batch * m_num_channel * m_rows * m_cols + col * m_rows * m_num_channel + row * m_num_channel + channel;
+        return batch * m_num_channel * m_num_row * m_num_col + col * m_num_row * m_num_channel + row * m_num_channel +
+               channel;
     }
 }
 
@@ -168,9 +185,8 @@ template <typename T>
 void Matrix<T>::set(int batch, int channel, int row, int col, T val) {
     assert(batch < m_num_batch);
     assert(channel < m_num_channel);
-    assert(row < m_rows);
-    assert(col < m_cols);
-    // printf("T Val %d\n", val);
+    assert(row < m_num_row);
+    assert(col < m_num_col);
     m_data[index(batch, channel, row, col)] = val;
 }
 
@@ -178,19 +194,19 @@ template <typename T>
 T Matrix<T>::get(int batch, int channel, int row, int col) {
     assert(batch < m_num_batch);
     assert(channel < m_num_channel);
-    assert(row < m_rows);
-    assert(col < m_cols);
+    assert(row < m_num_row);
+    assert(col < m_num_col);
     return m_data[index(batch, channel, row, col)];
 }
 
 template <typename T>
-int Matrix<T>::rows() {
-    return m_rows;
+int Matrix<T>::num_row() {
+    return m_num_row;
 }
 
 template <typename T>
-int Matrix<T>::cols() {
-    return m_cols;
+int Matrix<T>::num_col() {
+    return m_num_col;
 }
 
 template <typename T>
@@ -207,8 +223,8 @@ template <typename T>
 void Matrix<T>::print(const char *name) {
     for (int batch = 0; batch < num_batch(); batch++) {
         for (int channel = 0; channel < num_channel(); channel++) {
-            for (int row = 0; row < rows(); row++) {
-                for (int col = 0; col < cols(); col++) {
+            for (int row = 0; row < num_row(); row++) {
+                for (int col = 0; col < num_col(); col++) {
                     std::cout << name << "[" << batch << "][" << channel << "][" << row << "][" << col
                               << "] = " << get(batch, channel, row, col) << endl;
                 }
@@ -274,18 +290,18 @@ template <typename T>
 bool Matrix<T>::matrix_compare(const char *name, Matrix<T> &ref_matrix, float max_error) {
     assert(num_batch() == ref_matrix.num_batch());
     assert(num_channel() == ref_matrix.num_channel());
-    assert(rows() == ref_matrix.rows());
-    assert(cols() == ref_matrix.cols());
+    assert(num_row() == ref_matrix.num_row());
+    assert(num_col() == ref_matrix.num_col());
 
     for (int batch = 0; batch < num_batch(); batch++) {
         for (int channel = 0; channel < num_channel(); channel++) {
-            for (int row = 0; row < rows(); row++) {
-                for (int col = 0; col < cols(); col++) {
+            for (int row = 0; row < num_row(); row++) {
+                for (int col = 0; col < num_col(); col++) {
                     T my_matrix_data = get(batch, channel, row, col);
                     T ref_matrix_data = ref_matrix.get(batch, channel, row, col);
 
                     if (is_equal<T>(my_matrix_data, ref_matrix_data, max_error) == false) {
-                        std::cout << name << " mismatch at [" << batch << ", " << channel << ", " << row << "," << col
+                        std::cout << name << " mismatch at [" << batch << ", " << channel << ", " << row << ", " << col
                                   << "]:" << endl;
                         T var = my_matrix_data;
                         if (var - (int)var == 0)
