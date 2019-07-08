@@ -335,3 +335,8 @@ bool Matrix<T>::matrix_compare(const char *name, Matrix<T> &ref_matrix, float ma
     }
     return true;
 }
+
+template <typename T>
+bool matrix_compare(const char *name, Matrix<T> &m1, Matrix<T> &m2, float max_error = 1.e-4) {
+    return m1.matrix_compare(name, m2, max_error);
+}

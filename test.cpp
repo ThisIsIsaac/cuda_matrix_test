@@ -87,6 +87,7 @@ void Test<T>::test_matrix_compare() {
 
         if (!m1.matrix_compare("Compare", m2)) throw 1;
         if (!m2.matrix_compare("Compare", m1)) throw 2;
+        if (!matrix_compare("Compare", m1, m2)) throw 3;
 
         Matrix<T> m3(NCHW, 11, 12, 13, 14);
         Matrix<T> m4(NCHW, 11, 12, 13, 14);
@@ -101,8 +102,9 @@ void Test<T>::test_matrix_compare() {
                 }
             }
         }
-        if (m3.matrix_compare("Compare", m4)) throw 3;
-        if (m4.matrix_compare("Compare", m3)) throw 4;
+        if (m3.matrix_compare("Compare", m4)) throw 4;
+        if (m4.matrix_compare("Compare", m3)) throw 5;
+        if (matrix_compare("Compare", m3, m4)) throw 6;
 
         printf("Test Passed!\n");
     } catch (int exp) {
@@ -129,6 +131,7 @@ void Test<half>::test_matrix_compare() {
 
         if (!m1.matrix_compare("Compare", m2)) throw 1;
         if (!m2.matrix_compare("Compare", m1)) throw 2;
+        if (!matrix_compare("Compare", m1, m2)) throw 3;
 
         Matrix<half> m3(NCHW, 11, 12, 13, 14);
         Matrix<half> m4(NCHW, 11, 12, 13, 14);
@@ -143,8 +146,9 @@ void Test<half>::test_matrix_compare() {
                 }
             }
         }
-        if (m3.matrix_compare("Compare", m4)) throw 3;
-        if (m4.matrix_compare("Compare", m3)) throw 4;
+        if (m3.matrix_compare("Compare", m4)) throw 4;
+        if (m4.matrix_compare("Compare", m3)) throw 5;
+        if (matrix_compare("Compare", m3, m4)) throw 6;
 
         printf("Test Passed!\n");
     } catch (int exp) {
@@ -172,6 +176,7 @@ void Test<bit>::test_matrix_compare() {
 
         if (!m1.matrix_compare("Compare", m2)) throw 1;
         if (!m2.matrix_compare("Compare", m1)) throw 2;
+        if (!matrix_compare("Compare", m1, m2)) throw 3;
 
         Matrix<bit> m3(NCHW, 11, 12, 13, 14);
         Matrix<bit> m4(NCHW, 11, 12, 13, 14);
@@ -187,8 +192,9 @@ void Test<bit>::test_matrix_compare() {
                 }
             }
         }
-        if (m3.matrix_compare("Compare", m4)) throw 3;
-        if (m4.matrix_compare("Compare", m3)) throw 4;
+        if (m3.matrix_compare("Compare", m4)) throw 4;
+        if (m4.matrix_compare("Compare", m3)) throw 5;
+        if (matrix_compare("Compare", m3, m4)) throw 6;
 
         printf("Test Passed!\n");
     } catch (int exp) {
