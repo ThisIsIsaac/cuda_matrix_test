@@ -40,6 +40,34 @@ void Test<int>::test_randomize() {
     }
 }
 
+template <>
+void Test<bit>::test_randomize() {
+    Matrix<bit> m1(NCHW, 10, 11, 12, 13);
+    m1.randomize(1);
+    for (int batch = 0; batch < m1.num_batch(); batch++) {
+        for (int channel = 0; channel < m1.num_channel(); channel++) {
+            for (int row = 0; row < m1.num_row(); row++) {
+                for (int col = 0; col < m1.num_col(); col++) {
+                    bool val = m1.get(batch, channel, row, col);
+                    assert(0 <= val && val <= 1);
+                }
+            }
+        }
+    }
+
+    m1.randomize(0);
+    for (int batch = 0; batch < m1.num_batch(); batch++) {
+        for (int channel = 0; channel < m1.num_channel(); channel++) {
+            for (int row = 0; row < m1.num_row(); row++) {
+                for (int col = 0; col < m1.num_col(); col++) {
+                    bool val = m1.get(batch, channel, row, col);
+                    assert(val == 0);
+                }
+            }
+        }
+    }
+}
+
 template <typename T>
 void Test<T>::test_matrix_compare() {
     try {
@@ -124,6 +152,50 @@ void Test<half>::test_matrix_compare() {
     }
 }
 
+template <>
+void Test<bit>::test_matrix_compare() {
+    try {
+        Matrix<bit> m1(NCHW, 11, 12, 13, 14);
+        Matrix<bit> m2(NCHW, 11, 12, 13, 14);
+        int k = 0;
+        for (int batch = 0; batch < m1.num_batch(); batch++) {
+            for (int channel = 0; channel < m1.num_channel(); channel++) {
+                for (int row = 0; row < m1.num_row(); row++) {
+                    for (int col = 0; col < m1.num_col(); col++) {
+                        m1.set(batch, channel, row, col, k % 2);
+                        m2.set(batch, channel, row, col, k % 2);
+                        k++;
+                    }
+                }
+            }
+        }
+
+        if (!m1.matrix_compare("Compare", m2)) throw 1;
+        if (!m2.matrix_compare("Compare", m1)) throw 2;
+
+        Matrix<bit> m3(NCHW, 11, 12, 13, 14);
+        Matrix<bit> m4(NCHW, 11, 12, 13, 14);
+        k = 0;
+        for (int batch = 0; batch < m3.num_batch(); batch++) {
+            for (int channel = 0; channel < m3.num_channel(); channel++) {
+                for (int row = 0; row < m3.num_row(); row++) {
+                    for (int col = 0; col < m3.num_col(); col++) {
+                        m3.set(batch, channel, row, col, k % 2);
+                        m4.set(batch, channel, row, col, (k != 20 ? k % 2 : 1));
+                        k++;
+                    }
+                }
+            }
+        }
+        if (m3.matrix_compare("Compare", m4)) throw 3;
+        if (m4.matrix_compare("Compare", m3)) throw 4;
+
+        printf("Test Passed!\n");
+    } catch (int exp) {
+        printf("Test failed: %d\n", exp);
+    }
+}
+
 int main() {
     printf("Test cases for class Matrix\n");
 
@@ -131,6 +203,7 @@ int main() {
     Test<float> float_test;
     Test<double> double_test;
     Test<half> half_test;
+    Test<bit> bit_test;
 
     puts("Randomize test for int");
     int_test.test_randomize();
@@ -140,6 +213,8 @@ int main() {
     double_test.test_randomize();
     puts("Randomize test for half");
     half_test.test_randomize();
+    puts("Randomize test for bit");
+    bit_test.test_randomize();
 
     puts("Compare test for int");
     int_test.test_matrix_compare();
@@ -149,4 +224,6 @@ int main() {
     double_test.test_matrix_compare();
     puts("Compare test for half");
     half_test.test_matrix_compare();
+    puts("Compare test for bit");
+    bit_test.test_matrix_compare();
 }

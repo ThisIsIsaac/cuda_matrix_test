@@ -1,10 +1,12 @@
-#include <assert.h>
 #include <cuda_runtime.h>
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <bitset>
+#include <cassert>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include "half.hpp"
 using half_float::half;
+typedef bool bit;
 using namespace std;
 
 #define CHECK(call)                                                                      \
@@ -97,7 +99,7 @@ void Matrix<T>::d_cudaMemcpy() {
 
 template <typename T>
 void Matrix<T>::randomize(double mean, double scale, int sparsity) {
-    if (std::is_same<T, float>::value || std::is_same<T, double>::value) {
+    if (is_same<T, float>::value || is_same<T, double>::value) {
         for (int batch = 0; batch < num_batch(); batch++) {
             for (int channel = 0; channel < num_channel(); channel++) {
                 for (int row = 0; row < num_row(); row++) {
@@ -159,7 +161,21 @@ void Matrix<int>::randomize(int max_value) {
         for (int channel = 0; channel < num_channel(); channel++) {
             for (int row = 0; row < num_row(); row++) {
                 for (int col = 0; col < num_col(); col++) {
-                    set(batch, channel, row, col, rand() % max_value);
+                    set(batch, channel, row, col, rand() % (max_value + 1));
+                }
+            }
+        }
+    }
+}
+
+template <>
+void Matrix<bit>::randomize(int max_value) {
+    assert(max_value == 0 || max_value == 1);
+    for (int batch = 0; batch < num_batch(); batch++) {
+        for (int channel = 0; channel < num_channel(); channel++) {
+            for (int row = 0; row < num_row(); row++) {
+                for (int col = 0; col < num_col(); col++) {
+                    set(batch, channel, row, col, rand() % (max_value + 1));
                 }
             }
         }
@@ -225,8 +241,8 @@ void Matrix<T>::print(const char *name) {
         for (int channel = 0; channel < num_channel(); channel++) {
             for (int row = 0; row < num_row(); row++) {
                 for (int col = 0; col < num_col(); col++) {
-                    std::cout << name << "[" << batch << "][" << channel << "][" << row << "][" << col
-                              << "] = " << get(batch, channel, row, col) << endl;
+                    cout << name << "[" << batch << "][" << channel << "][" << row << "][" << col
+                         << "] = " << get(batch, channel, row, col) << endl;
                 }
             }
         }
@@ -301,15 +317,15 @@ bool Matrix<T>::matrix_compare(const char *name, Matrix<T> &ref_matrix, float ma
                     T ref_matrix_data = ref_matrix.get(batch, channel, row, col);
 
                     if (is_equal<T>(my_matrix_data, ref_matrix_data, max_error) == false) {
-                        std::cout << name << " mismatch at [" << batch << ", " << channel << ", " << row << ", " << col
-                                  << "]:" << endl;
+                        cout << name << " mismatch at [" << batch << ", " << channel << ", " << row << ", " << col
+                             << "]:" << endl;
                         T var = my_matrix_data;
                         if (var - (int)var == 0)
-                            std::cout << "                my = " << my_matrix_data << " vs ref = " << ref_matrix_data
-                                      << endl;
+                            cout << "                my = " << my_matrix_data << " vs ref = " << ref_matrix_data
+                                 << endl;
                         else
-                            std::cout << "                my = " << my_matrix_data << " vs ref = " << ref_matrix_data
-                                      << endl;
+                            cout << "                my = " << my_matrix_data << " vs ref = " << ref_matrix_data
+                                 << endl;
 
                         return false;
                     }
