@@ -39,15 +39,15 @@ class Matrix {
 
     ~Matrix();
 
-    void randomize_float(float mean, float scale, int sparsity = 0);
+    void randomize(T mean, T scale, int sparsity = 0);
 
-    void randomize_int(int max_value);
-
-    void randomize_double(double mean, double scale, int sparsity = 0);
-
-    void randomize_half(half mean, half scale, int sparsity = 0);
+    void randomize(int max_value);
 
     int index(int batch, int channel, int row, int col);
+
+    T *data();
+
+    T *d_data();
 
     void set(int batch, int channel, int row, int col, T val);
 
@@ -66,11 +66,6 @@ class Matrix {
     bool matrix_compare(const char *name, Matrix<T> &ref_matirx, float max_error = 1.e-4);
 
     void d_cudaMemcpy();
-
-    T *data();
-    T *d_data();
-
-    // bool is_same(T val1, T val2, float max_error);
 };
 
 #endif
@@ -84,7 +79,7 @@ Matrix<T>::Matrix(Layout layout, int num_batch, int num_channel, int rows, int c
       m_cols(cols),
       m_isTransposed(isTransposed) {
     m_data = (T *)malloc(num_batch * num_channel * rows * cols * sizeof(T));
-    CHECK(cudaMalloc((int**) &m_d_data, num_batch * num_channel * rows * cols * sizeof(T))));
+    CHECK(cudaMalloc((int **)&m_d_data, num_batch * num_channel * rows * cols * sizeof(T)));
 }
 
 template <typename T>
@@ -101,83 +96,50 @@ void Matrix<T>::d_cudaMemcpy() {
 }
 
 template <typename T>
-void Matrix<T>::randomize_float(float mean, float scale, int sparsity) {
+void Matrix<T>::randomize(T mean, T scale, int sparsity) {
     for (int batch = 0; batch < num_batch(); batch++) {
         for (int channel = 0; channel < num_channel(); channel++) {
             for (int row = 0; row < rows(); row++) {
                 for (int col = 0; col < cols(); col++) {
-                    if ((rand() % 100) < sparsity) {
-                        // printf("this is %f\n", 0.f);
-                        set(batch, channel, row, col, 0.f);
+                    T r;
+                    // Generate a random number from 0 to 1.0
+                    if (std::is_same<T, float>::value || std::is_same<T, double>::value) {
+                        if ((rand() % 100) < sparsity) {
+                            // printf("this is %f\n", 0.f);
+                            set(batch, channel, row, col, 0.f);
+                        } else {
+                            r = static_cast<T>(rand()) / static_cast<T>(RAND_MAX);
+
+                            // Convert to -.5 to .5
+                            r -= 0.5;
+
+                            // Scale and shift
+                            r = r * scale + mean;
+                        }
+                    } else if (std::is_same<T, half>::value) {
+                        if ((rand() % 100) < sparsity) {
+                            // printf("this is %f\n", 0.f);
+                            half a(0.0);
+                            set(batch, channel, row, col, a);
+                        } else {
+                            float f = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+                            f -= 0.5;
+                            f = f * scale + mean;
+                            r = f;
+                        }
                     } else {
-                        // Generate a random number from 0 to 1.0
-                        float r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-
-                        // Convert to -.5 to .5
-                        r -= 0.5;
-
-                        // Scale and shift
-                        r = r * scale + mean;
-
-                        set(batch, channel, row, col, r);
+                        assert("Type error: randomize() only supports floating-point types");
                     }
+                    set(batch, channel, row, col, r);
                 }
             }
         }
     }
 }
 
-template <typename T>
-void Matrix<T>::randomize_double(double mean, double scale, int sparsity) {
-    for (int batch = 0; batch < num_batch(); batch++) {
-        for (int channel = 0; channel < num_channel(); channel++) {
-            for (int row = 0; row < rows(); row++) {
-                for (int col = 0; col < cols(); col++) {
-                    if ((rand() % 100) < sparsity) {
-                        set(batch, channel, row, col, 0.0);
-                    } else {
-                        double r = static_cast<double>(rand()) / static_cast<double>(RAND_MAX);
-
-                        r -= 0.5;
-
-                        r = r * scale + mean;
-
-                        set(batch, channel, row, col, r);
-                    }
-                }
-            }
-        }
-    }
-}
-
-template <typename T>
-void Matrix<T>::randomize_half(half mean, half scale, int sparsity) {
-    for (int batch = 0; batch < num_batch(); batch++) {
-        for (int channel = 0; channel < num_channel(); channel++) {
-            for (int row = 0; row < rows(); row++) {
-                for (int col = 0; col < cols(); col++) {
-                    if ((rand() % 100) < sparsity) {
-                        half a(0.0);
-                        set(batch, channel, row, col, a);
-                    } else {
-                        float r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-
-                        r -= 0.5;
-
-                        r = r * scale + mean;
-
-                        half val(r);
-
-                        set(batch, channel, row, col, val);
-                    }
-                }
-            }
-        }
-    }
-}
-
-template <typename T>
-void Matrix<T>::randomize_int(int max_value) {
+template <>
+void Matrix<int>::randomize(int max_value) {
+    // ONLY supports integer type
     for (int batch = 0; batch < num_batch(); batch++) {
         for (int channel = 0; channel < num_channel(); channel++) {
             for (int row = 0; row < rows(); row++) {
@@ -241,47 +203,8 @@ int Matrix<T>::num_channel() {
     return m_num_channel;
 }
 
-template <>
-void Matrix<float>::print(const char *name) {
-    for (int batch = 0; batch < num_batch(); batch++) {
-        for (int channel = 0; channel < num_channel(); channel++) {
-            for (int row = 0; row < rows(); row++) {
-                for (int col = 0; col < cols(); col++) {
-                    printf("%s[%d][%d][%d][%d] = %f\n", name, batch, channel, row, col, get(batch, channel, row, col));
-                }
-            }
-        }
-    }
-}
-
-template <>
-void Matrix<int>::print(const char *name) {
-    for (int batch = 0; batch < num_batch(); batch++) {
-        for (int channel = 0; channel < num_channel(); channel++) {
-            for (int row = 0; row < rows(); row++) {
-                for (int col = 0; col < cols(); col++) {
-                    printf("%s[%d][%d][%d][%d] = %d\n", name, batch, channel, row, col, get(batch, channel, row, col));
-                }
-            }
-        }
-    }
-}
-
-template <>
-void Matrix<double>::print(const char *name) {
-    for (int batch = 0; batch < num_batch(); batch++) {
-        for (int channel = 0; channel < num_channel(); channel++) {
-            for (int row = 0; row < rows(); row++) {
-                for (int col = 0; col < cols(); col++) {
-                    printf("%s[%d][%d][%d][%d] = %f\n", name, batch, channel, row, col, get(batch, channel, row, col));
-                }
-            }
-        }
-    }
-}
-
-template <>
-void Matrix<half>::print(const char *name) {
+template <typename T>
+void Matrix<T>::print(const char *name) {
     for (int batch = 0; batch < num_batch(); batch++) {
         for (int channel = 0; channel < num_channel(); channel++) {
             for (int row = 0; row < rows(); row++) {
@@ -318,8 +241,6 @@ bool is_equal<float>(float val1, float val2, float max_error) {
         if ((val1 == 0.f && val2 != 0.f) || (val1 != 0.f && val2 == 0.f)) {
             is_correct = false;
         } else {
-            // is_correct = (val1 <= 0.f && val2 == 0.f) || (fabs(val2 - val1)
-            // <= 0.000001f) || (fabs(val2/val1 - 1) <= max_error);
             is_correct = (val1 == 0.f && val2 == 0.f) ||
                          ((fabs(val2 - val1) <= max_error) && (fabs(val2 / val1 - 1) <= max_error));
         }
@@ -349,26 +270,8 @@ bool is_equal<double>(double val1, double val2, float max_error) {
     return is_correct;
 };
 
-template <>
-bool is_equal<int>(int val1, int val2, float max_error) {
-    bool is_correct = false;
-
-    if (val1 == val2) is_correct = true;
-
-    return is_correct;
-}
-
-template <>
-bool is_equal<half>(half val1, half val2, float max_error) {
-    bool is_correct = false;
-
-    if (half_float::detail::functions::isequal(val1, val2)) is_correct = true;
-
-    return is_correct;
-}
-
-template <>
-bool Matrix<float>::matrix_compare(const char *name, Matrix<float> &ref_matrix, float max_error) {
+template <typename T>
+bool Matrix<T>::matrix_compare(const char *name, Matrix<T> &ref_matrix, float max_error) {
     assert(num_batch() == ref_matrix.num_batch());
     assert(num_channel() == ref_matrix.num_channel());
     assert(rows() == ref_matrix.rows());
@@ -378,102 +281,13 @@ bool Matrix<float>::matrix_compare(const char *name, Matrix<float> &ref_matrix, 
         for (int channel = 0; channel < num_channel(); channel++) {
             for (int row = 0; row < rows(); row++) {
                 for (int col = 0; col < cols(); col++) {
-                    float my_matrix_data = get(batch, channel, row, col);
-                    float ref_matrix_data = ref_matrix.get(batch, channel, row, col);
+                    T my_matrix_data = get(batch, channel, row, col);
+                    T ref_matrix_data = ref_matrix.get(batch, channel, row, col);
 
-                    if (is_equal<float>(my_matrix_data, ref_matrix_data, max_error) == false) {
-                        printf("            %s mismatch at [%d, %d, %d,%d]:\n", name, batch, channel, row, col);
-                        float var = my_matrix_data;
-                        if (var - (int)var == 0)
-                            printf("                my = %.7f vs ref = %.7f\n", my_matrix_data, ref_matrix_data);
-                        else
-                            printf("                my = %.7f vs ref = %.7f\n", my_matrix_data, ref_matrix_data);
-
-                        return false;
-                    }
-                }
-            }
-        }
-    }
-    return true;
-}
-
-template <>
-bool Matrix<double>::matrix_compare(const char *name, Matrix<double> &ref_matrix, float max_error) {
-    assert(num_batch() == ref_matrix.num_batch());
-    assert(num_channel() == ref_matrix.num_channel());
-    assert(rows() == ref_matrix.rows());
-    assert(cols() == ref_matrix.cols());
-
-    for (int batch = 0; batch < num_batch(); batch++) {
-        for (int channel = 0; channel < num_channel(); channel++) {
-            for (int row = 0; row < rows(); row++) {
-                for (int col = 0; col < cols(); col++) {
-                    double my_matrix_data = get(batch, channel, row, col);
-                    double ref_matrix_data = ref_matrix.get(batch, channel, row, col);
-
-                    if (is_equal<double>(my_matrix_data, ref_matrix_data, max_error) == false) {
-                        printf("            %s mismatch at [%d, %d, %d,%d]:\n", name, batch, channel, row, col);
-                        float var = my_matrix_data;
-                        if (var - (int)var == 0)
-                            printf("                my = %.7f vs ref = %.7f\n", my_matrix_data, ref_matrix_data);
-                        else
-                            printf("                my = %.7f vs ref = %.7f\n", my_matrix_data, ref_matrix_data);
-
-                        return false;
-                    }
-                }
-            }
-        }
-    }
-    return true;
-}
-
-template <>
-bool Matrix<int>::matrix_compare(const char *name, Matrix<int> &ref_matrix, float max_error) {
-    assert(num_batch() == ref_matrix.num_batch());
-    assert(num_channel() == ref_matrix.num_channel());
-    assert(rows() == ref_matrix.rows());
-    assert(cols() == ref_matrix.cols());
-
-    for (int batch = 0; batch < num_batch(); batch++) {
-        for (int channel = 0; channel < num_channel(); channel++) {
-            for (int row = 0; row < rows(); row++) {
-                for (int col = 0; col < cols(); col++) {
-                    int my_matrix_data = get(batch, channel, row, col);
-                    int ref_matrix_data = ref_matrix.get(batch, channel, row, col);
-
-                    if (is_equal<int>(my_matrix_data, ref_matrix_data, max_error) == false) {
-                        printf("            %s mismatch at [%d, %d, %d,%d]:\n", name, batch, channel, row, col);
-                        printf("                my = %.7d vs ref = %.7d\n", my_matrix_data, ref_matrix_data);
-
-                        return false;
-                    }
-                }
-            }
-        }
-    }
-    return true;
-}
-
-template <>
-bool Matrix<half>::matrix_compare(const char *name, Matrix<half> &ref_matrix, float max_error) {
-    assert(num_batch() == ref_matrix.num_batch());
-    assert(num_channel() == ref_matrix.num_channel());
-    assert(rows() == ref_matrix.rows());
-    assert(cols() == ref_matrix.cols());
-
-    for (int batch = 0; batch < num_batch(); batch++) {
-        for (int channel = 0; channel < num_channel(); channel++) {
-            for (int row = 0; row < rows(); row++) {
-                for (int col = 0; col < cols(); col++) {
-                    half my_matrix_data = get(batch, channel, row, col);
-                    half ref_matrix_data = ref_matrix.get(batch, channel, row, col);
-
-                    if (is_equal<half>(my_matrix_data, ref_matrix_data, max_error) == false) {
+                    if (is_equal<T>(my_matrix_data, ref_matrix_data, max_error) == false) {
                         std::cout << name << " mismatch at [" << batch << ", " << channel << ", " << row << "," << col
                                   << "]:" << endl;
-                        half var = my_matrix_data;
+                        T var = my_matrix_data;
                         if (var - (int)var == 0)
                             std::cout << "                my = " << my_matrix_data << " vs ref = " << ref_matrix_data
                                       << endl;
