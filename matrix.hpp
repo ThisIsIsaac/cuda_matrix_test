@@ -1,3 +1,6 @@
+/***************************************************************************
+start of matrix.hpp
+***************************************************************************/
 #include <cuda_runtime.h>
 #include <bitset>
 #include <cassert>
@@ -340,3 +343,6 @@ template <typename T>
 bool matrix_compare(const char *name, Matrix<T> &m1, Matrix<T> &m2, float max_error = 1.e-4) {
     return m1.matrix_compare(name, m2, max_error);
 }
+/***************************************************************************
+end of matrix.cpp
+***************************************************************************/
