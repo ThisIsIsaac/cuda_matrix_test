@@ -97,7 +97,7 @@ template <typename T>
 void Matrix<T>::d_cudaMemcpy() {
     size_t nBytes = num_batch() * num_channel() * num_row() * num_col() * sizeof(T);
     CHECK(cudaMemset(m_d_data, 0, nBytes));
-    CHECK(cudaMemcpy(m_data, m_d_data, nBytes, cudaMemcpyHostToDevice));
+    CHECK(cudaMemcpy(m_d_data, m_data, nBytes, cudaMemcpyHostToDevice));
 }
 
 template <typename T>
