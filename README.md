@@ -38,3 +38,7 @@ Supports `int`, `float`, `double`, `half` (fp16), `bit`.
 - 두 Matrix가 같은지 확인한다.
 - m1.matrix_compare(name, m2, max_error); 로 사용할 수도 있고
 - matrix_compare(name, m1, m2, max_error); 로 사용할 수도 있다.
+
+## contributions
+
+[matrix.cpp](https://github.com/NVIDIA/nv-wavenet/blob/master/matrix.cpp) was used as the base of this repository.
