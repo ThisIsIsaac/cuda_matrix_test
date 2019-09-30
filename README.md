@@ -41,4 +41,4 @@ Supports `int`, `float`, `double`, `half` (fp16), `bit`.
 
 ## contributions
 
-[matrix.cpp](https://github.com/NVIDIA/nv-wavenet/blob/master/matrix.cpp) was used as the base of this repository.
+[matrix.cpp](https://github.com/NVIDIA/nv-wavenet/blob/master/matrix.cpp) was used as the base for this repository.
